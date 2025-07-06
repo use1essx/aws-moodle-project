@@ -1,11 +1,11 @@
-# 📘 AWS Moodle Project – Full Terraform & Helm Deployment
+# 📘 AWS Moodle Project – Docker & EC2 Deployment
 
 This project deploys a **fully functional Moodle LMS** on AWS using:
 - **Terraform** for Infrastructure-as-Code (IaC)
-- **Amazon EKS** (Kubernetes) for hosting Moodle
-- **Bitnami Moodle** container deployed via **Helm**
+- **Amazon EC2** for hosting Moodle (with Docker)
+- **Bitnami Moodle Docker image**
 - **Amazon RDS (Aurora MySQL)** as the Moodle backend database
-- **AWS Load Balancer** for public access
+- **Amazon ALB** for public access
 
 ---
 
@@ -13,26 +13,9 @@ This project deploys a **fully functional Moodle LMS** on AWS using:
 
 - **VPC** with public/private subnets across two Availability Zones (`us-east-1a`, `us-east-1b`)
 - **ALB** in public subnets for external access
-- **EKS Node Groups** in private subnets (multi-AZ, auto-scaling)
+- **EC2 Instance(s)** in public subnets (auto scaling possible)
 - **RDS Aurora Cluster** (multi-AZ, HA) in private subnets
-- **NAT Gateways** for secure outbound access
-- **Security Groups** for EKS, RDS, and ALB
-- **Supporting services:** S3, CloudWatch, Secrets Manager
-
-**Text Diagram:**
-```
-Internet Gateway
-      |
-   [ALB] (Public Subnets: us-east-1a, us-east-1b)
-      |
-   [EKS Node Groups] (Private Subnets: us-east-1a, us-east-1b)
-      |
-   [RDS Aurora Cluster] (Multi-AZ)
-      |
-   [S3, CloudWatch, Secrets Manager]
-```
-
-**Visual Diagram:** See the included diagram in your report or `architecture.png` if provided.
+- **Security Groups** for EC2, RDS, and ALB
 
 ---
 
@@ -42,11 +25,8 @@ Internet Gateway
 |-------------|-----------------|-------|
 | Terraform   | >= 1.3          | Install if not present |
 | AWS CLI     | Pre-installed   | In AWS CloudShell |
-| Helm        | >= 3.0          | Install if not present |
-| kubectl     | Pre-installed   | In AWS CloudShell |
+| Docker      | >= 20           | On EC2 instance |
 | git         | Pre-installed   | In AWS CloudShell |
-
-> **Tip:** In AWS CloudShell, only Terraform and Helm may need to be installed.
 
 ---
 
@@ -65,99 +45,81 @@ git clone <your-repo-url>
 cd aws-moodle-project
 ```
 
-### 4. Install Required Tools
-- **Terraform:** [Install instructions](https://learn.hashicorp.com/tutorials/terraform/install-cli)
-- **kubectl:**
-  ```sh
-  curl -LO "https://storage.googleapis.com/kubernetes-release/release/v1.29.0/bin/linux/amd64/kubectl"
-  chmod +x kubectl
-  sudo mv kubectl /usr/local/bin/
-  kubectl version --client
-  ```
-- **Helm:** [Install instructions](https://helm.sh/docs/intro/install/)
-export AWS_ACCESS_KEY_ID=your_access_key_id
-export AWS_SECRET_ACCESS_KEY=your_secret_access_key
-export AWS_SESSION_TOKEN=your_session_token
-### 5. Initialize Terraform
+### 4. Initialize Terraform
 ```sh
 terraform init
 ```
 
-### 6. Set Up Pre-existing IAM Role ARNs
-- Edit `terraform.tfvars` and fill in the ARNs for your pre-existing EKS cluster and node IAM roles (provided by your instructor or lab).
-
-### 7. Deploy Infrastructure
+### 5. Deploy Infrastructure
 ```sh
 terraform apply -auto-approve
 ```
-- This will provision the VPC, subnets, security groups, EKS, RDS, and all supporting resources.
+- This will provision the VPC, subnets, security groups, EC2, RDS, and ALB.
 
-### 8. Update kubeconfig for EKS
+### 6. Connect to Your EC2 Instance
+- Find the public IP of your EC2 instance in the AWS Console or Terraform output.
+- SSH into the instance:
 ```sh
-aws eks update-kubeconfig --region us-east-1 --name moodle-eks-cluster
+ssh -i ~/.ssh/labsuser.pem ubuntu@<ec2-public-ip>
 ```
 
-### 9. Check EKS Node Readiness
+### 7. Install Docker (if not already installed)
 ```sh
-kubectl get nodes
-```
-- Wait until all nodes show `Ready`.
-
-### 10. Deploy Moodle via Helm (if not automated)
-- If your setup does not auto-deploy Moodle, run:
-  ```sh
-  helm upgrade --install moodle bitnami/moodle -f moodle-values.yaml
-  ```
-
-### 11. Access Moodle
-- Find the ALB DNS name in the AWS Console (EC2 > Load Balancers) or from Terraform output.
-- Open it in your browser.
-
-### 12. Scale Moodle Pods (Optional)
-```sh
-kubectl scale deployment moodle --replicas=3
-kubectl get pods
+sudo apt-get update
+sudo apt-get install -y docker.io
+sudo usermod -aG docker ubuntu
+newgrp docker
 ```
 
-### 13. Cleanup
-```sh
-terraform destroy -auto-approve
+### 8. Deploy Moodle with Docker (Bitnami)
+
+#### Option 1: Using Docker Compose (Recommended)
+Create a `docker-compose.yml` file:
+```yaml
+version: '2'
+services:
+  moodle:
+    image: bitnami/moodle:latest
+    ports:
+      - '8080:8080'
+      - '8443:8443'
+    environment:
+      - MOODLE_DATABASE_HOST=<your-rds-endpoint>
+      - MOODLE_DATABASE_PORT_NUMBER=3306
+      - MOODLE_DATABASE_USER=<your-db-username>
+      - MOODLE_DATABASE_NAME=<your-db-name>
+      - MOODLE_DATABASE_PASSWORD=<your-db-password>
 ```
-- Always destroy resources when done to avoid AWS charges.
-
----
-
-## 🚀 One-Line Deployment
-
+Run:
 ```sh
-terraform init
-terraform apply -auto-approve
+docker-compose up -d
 ```
+
+#### Option 2: Run Directly with Docker
+```sh
+docker run -d --name moodle \
+  -p 8080:8080 -p 8443:8443 \
+  -e MOODLE_DATABASE_HOST=<your-rds-endpoint> \
+  -e MOODLE_DATABASE_PORT_NUMBER=3306 \
+  -e MOODLE_DATABASE_USER=<your-db-username> \
+  -e MOODLE_DATABASE_NAME=<your-db-name> \
+  -e MOODLE_DATABASE_PASSWORD=<your-db-password> \
+  bitnami/moodle:latest
+```
+
+- Access Moodle at `http://<alb-dns-name>:8080` (find ALB DNS in AWS Console or Terraform output).
 
 ---
 
 ## 🌐 Access Moodle
-- After apply, find the ALB DNS name in the AWS console (EC2 > Load Balancers) or from the Terraform output (if configured).
+- After apply, find the ALB DNS name in the AWS console (EC2 > Load Balancers) or from the Terraform output.
 - Open the DNS in your browser to access Moodle.
-- Login with credentials set in `moodle-values.yaml` (default: `admin`/`YourStrongMoodlePass123`).
+- Login with credentials set during the Moodle setup process.
 
 ---
 
-## 📈 Scale Moodle Pods
-- To scale up Moodle pods (e.g., to 3):
-```sh
-kubectl scale deployment moodle --replicas=3
-```
-- Check pods:
-```sh
-kubectl get pods
-```
-
----
-
-## 🛡️ Check RDS High Availability
-- In AWS Console, go to RDS > Clusters > moodle-aurora-cluster.
-- Confirm there are 2 instances (Writer/Reader or Multi-AZ).
+## 📈 Scale Moodle Web Servers
+- To scale, you can update your Terraform to use an Auto Scaling Group for EC2, or manually launch more EC2 instances and register them with the ALB.
 
 ---
 
@@ -170,12 +132,24 @@ terraform destroy
 
 ---
 
+## 📦 Reference: Bitnami Moodle Docker
+- [Bitnami Moodle Docker GitHub](https://github.com/bitnami/containers/tree/main/bitnami/moodle)
+- [Bitnami Docker Compose Examples](https://github.com/bitnami/containers/tree/main/bitnami/moodle#using-docker-compose)
+
+---
+
+## 📝 Notes
+- This setup does not use Kubernetes/EKS. For K8s deployment, see Bitnami's Helm chart or EKS documentation.
+- For horizontal scaling, use an Auto Scaling Group and ensure all EC2s use the same RDS backend.
+
+---
+
 ## 🎬 Demo Checklist
 - [ ] Show VPC, subnets, and security groups in AWS Console
-- [ ] Show EKS cluster and node group
+- [ ] Show EC2 instances and ALB
 - [ ] Show RDS cluster with 2 instances (HA)
-- [ ] Show ALB and access Moodle in browser
-- [ ] Show scaling Moodle pods (multiple pods running)
+- [ ] Show access Moodle in browser
+- [ ] Show scaling Moodle web servers (multiple instances running)
 - [ ] Show ConfigMap/Helm values in use
 - [ ] Show one-line deployment (terraform apply)
 

@@ -1,3 +1,5 @@
+replicaCount: 1
+
 moodleUsername: admin
 moodlePassword: YourStrongMoodlePass123
 moodleEmail: admin@example.com
@@ -14,8 +16,9 @@ externalDatabase:
 
 persistence:
   enabled: true
-  storageClass: "gp3"
-  size: 5Gi
+  # storageClass: "gp3"  # Disabled: use static provisioning
+  existingClaim: "moodle-static-pv-claim"
+  size: 8Gi
 
 service:
   type: LoadBalancer
@@ -23,4 +26,26 @@ service:
 ingress:
   enabled: false
 
-replicaCount: 2
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /login/index.php
+    port: http
+  exec: null
+  tcpSocket: null
+  initialDelaySeconds: 600
+  timeoutSeconds: 5
+  periodSeconds: 10
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /login/index.php
+    port: http
+  exec: null
+  tcpSocket: null
+  initialDelaySeconds: 30
+  timeoutSeconds: 3
+  periodSeconds: 5
+  failureThreshold: 6

@@ -22,13 +22,15 @@ resource "aws_rds_cluster" "aurora" {
   db_subnet_group_name   = aws_db_subnet_group.default.name
   vpc_security_group_ids = [var.rds_security_group_id]
   skip_final_snapshot    = true
+  storage_encrypted      = false
 }
 
 resource "aws_rds_cluster_instance" "aurora_instance" {
   count              = var.rds_instance_count
   identifier         = "moodle-aurora-instance-${count.index}"
   cluster_identifier = aws_rds_cluster.aurora.id
-  instance_class     = "db.t3.medium"
+  instance_class     = "db.t3.micro"
   engine             = aws_rds_cluster.aurora.engine
   publicly_accessible = false
+  monitoring_interval = 0
 }
