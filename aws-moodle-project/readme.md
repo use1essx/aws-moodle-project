@@ -28,4 +28,15 @@ export TF_VAR_eks_node_role_arn="arn:aws:iam::...:role/..."
 ```
 *(Replace the ... with the actual ARNs you copied above.)*
 
-Now continue with the Terraform steps below. 
+Now continue with the Terraform steps below.
+
+## Important: Update IAM Role ARNs
+
+Before running Terraform, open `terraform.tfvars` and set the following variables to the ARNs of your pre-existing IAM roles:
+
+```
+eks_cluster_role_arn = "arn:aws:iam::YOUR_ACCOUNT_ID:role/LabEksClusterRole-..."
+eks_node_role_arn    = "arn:aws:iam::YOUR_ACCOUNT_ID:role/LabEksNodeRole-..."
+```
+
+You can find these ARNs in the AWS IAM console under Roles. 

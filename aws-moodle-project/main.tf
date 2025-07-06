@@ -6,42 +6,67 @@ module "vpc" {
 }
 
 # =====================
-# EKS Module
+# EKS Module (DISABLED - using minimal setup below)
 # =====================
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "19.21.0"
+# module "eks" {
+#   source  = "terraform-aws-modules/eks/aws"
+#   version = "19.21.0"
+#
+#   cluster_name    = "moodle-eks-cluster"
+#   cluster_version = "1.29"
+#
+#   vpc_id     = module.vpc.vpc_id
+#   subnet_ids = module.vpc.private_subnets
+#
+#   create_iam_role = false
+#   iam_role_arn    = var.eks_cluster_role_arn
+#
+#   eks_managed_node_groups = {
+#     default = {
+#       desired_size   = 1
+#       min_size       = 1
+#       max_size       = 1
+#       instance_types = ["t3.micro"]
+#       capacity_type  = "ON_DEMAND"
+#       subnets        = module.vpc.private_subnets
+#       create_iam_role = false
+#       role_arn        = var.eks_node_role_arn
+#     }
+#   }
+#
+#   tags = {
+#     Environment = "moodle"
+#     Project     = "ITP4122"
+#   }
+# }
 
-  cluster_name    = "moodle-eks-cluster"
-  cluster_version = "1.29"
+# =====================
+# Minimal EKS Setup (No IAM lookups)
+# =====================
+resource "aws_eks_cluster" "this" {
+  name     = "moodle-eks-cluster"
+  role_arn = var.eks_cluster_role_arn
+  version  = "1.29"
 
-  vpc_id                   = module.vpc.vpc_id
-  subnet_ids               = module.vpc.private_subnets
-  enable_irsa              = true
-
-  cluster_role_arn = var.eks_cluster_role_arn
-
-  eks_managed_node_group_defaults = {
-    instance_types = ["t3.micro"]
-    ami_type       = "AL2_x86_64"
+  vpc_config {
+    subnet_ids = module.vpc.private_subnets
   }
 
-  eks_managed_node_groups = {
-    default = {
-      desired_size   = 1
-      min_size       = 1
-      max_size       = 1
-      instance_types = ["t3.micro"]
-      capacity_type  = "ON_DEMAND"
-      subnets        = module.vpc.private_subnets
-      role_arn       = var.eks_node_role_arn
-    }
-  }
+  depends_on = [module.vpc]
+}
 
-  tags = {
-    Environment = "moodle"
-    Project     = "ITP4122"
+resource "aws_eks_node_group" "default" {
+  cluster_name    = aws_eks_cluster.this.name
+  node_group_name = "default"
+  node_role_arn   = var.eks_node_role_arn
+  subnet_ids      = module.vpc.private_subnets
+  scaling_config {
+    desired_size = 1
+    max_size     = 1
+    min_size     = 1
   }
+  instance_types = ["t3.micro"]
+  depends_on = [aws_eks_cluster.this]
 }
 
 # =====================
@@ -58,9 +83,9 @@ module "rds" {
 # =====================
 module "helm_moodle" {
   source           = "./modules/helm_moodle"
-  cluster_name     = module.eks.cluster_name
-  cluster_endpoint = module.eks.cluster_endpoint
-  cluster_ca       = module.eks.cluster_certificate_authority_data
+  cluster_name     = aws_eks_cluster.this.name
+  cluster_endpoint = aws_eks_cluster.this.endpoint
+  cluster_ca       = aws_eks_cluster.this.certificate_authority[0].data
   rds_endpoint     = module.rds.db_endpoint
   rds_password     = module.rds.db_password
 }
@@ -69,9 +94,9 @@ module "helm_moodle" {
 # EKS Data Sources (for kubectl/Helm)
 # =====================
 data "aws_eks_cluster" "cluster" {
-  name = module.eks.cluster_name
+  name = aws_eks_cluster.this.name
 }
 
 data "aws_eks_cluster_auth" "auth" {
-  name = module.eks.cluster_name
+  name = aws_eks_cluster.this.name
 }

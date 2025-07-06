@@ -11,7 +11,7 @@ resource "helm_release" "moodle" {
   name       = "moodle"
   repository = "https://charts.bitnami.com/bitnami"
   chart      = "moodle"
-  version    = "17.1.1"  # you can update to latest stable
+  version    = "21.0.2"
 
   namespace          = "default"
   create_namespace   = false
