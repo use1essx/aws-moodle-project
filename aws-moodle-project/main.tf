@@ -134,6 +134,25 @@ resource "aws_eks_cluster" "this" {
   depends_on = [module.vpc]
 }
 
+# =====================
+# EC2 Key Pair for EKS Nodes (Automated)
+# =====================
+resource "tls_private_key" "eks" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "aws_key_pair" "eks" {
+  key_name   = "eks-key"
+  public_key = tls_private_key.eks.public_key_openssh
+}
+
+resource "local_file" "eks_private_key" {
+  content         = tls_private_key.eks.private_key_pem
+  filename        = "${path.module}/eks-key.pem"
+  file_permission = "0400"
+}
+
 resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "default"
@@ -146,7 +165,7 @@ resource "aws_eks_node_group" "default" {
   }
   instance_types = ["t3.micro"]
   remote_access {
-    ec2_ssh_key = "eks-key" # Optional: set your SSH key name
+    ec2_ssh_key = aws_key_pair.eks.key_name
     source_security_group_ids = [aws_security_group.eks_nodes.id]
   }
   depends_on = [aws_eks_cluster.this]
@@ -161,6 +180,22 @@ module "rds" {
   private_subnet_ids    = module.vpc.private_subnets
   rds_security_group_id = aws_security_group.rds.id
   rds_instance_count    = 2
+}
+
+# =====================
+# StorageClass for EKS Persistent Volumes (gp3)
+# =====================
+resource "kubernetes_storage_class" "gp3" {
+  metadata {
+    name = "gp3"
+  }
+  storage_provisioner = "kubernetes.io/aws-ebs"
+  parameters = {
+    type = "gp3"
+  }
+  reclaim_policy         = "Delete"
+  volume_binding_mode    = "WaitForFirstConsumer"
+  allow_volume_expansion = true
 }
 
 # =====================
