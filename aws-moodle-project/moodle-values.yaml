@@ -14,7 +14,8 @@ externalDatabase:
 
 persistence:
   enabled: true
-  storageClass: "gp3"
+  # storageClass: "gp3"  # Disabled: use static provisioning
+  existingClaim: "moodle-static-pv-claim"  # Use the static PVC you will create
   size: 8Gi
 
 service:

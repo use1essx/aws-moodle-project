@@ -185,18 +185,19 @@ module "rds" {
 # =====================
 # StorageClass for EKS Persistent Volumes (gp3)
 # =====================
-resource "kubernetes_storage_class" "gp3" {
-  metadata {
-    name = "gp3"
-  }
-  storage_provisioner = "kubernetes.io/aws-ebs"
-  parameters = {
-    type = "gp3"
-  }
-  reclaim_policy         = "Delete"
-  volume_binding_mode    = "WaitForFirstConsumer"
-  allow_volume_expansion = true
-}
+# The following StorageClass is commented out because dynamic EBS provisioning is not possible in AWS Learner Lab due to IAM restrictions.
+# resource "kubernetes_storage_class" "gp3" {
+#   metadata {
+#     name = "gp3"
+#   }
+#   storage_provisioner = "kubernetes.io/aws-ebs"
+#   parameters = {
+#     type = "gp3"
+#   }
+#   reclaim_policy         = "Delete"
+#   volume_binding_mode    = "WaitForFirstConsumer"
+#   allow_volume_expansion = true
+# }
 
 # =====================
 # Helm Moodle Module

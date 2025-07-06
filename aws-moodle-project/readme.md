@@ -75,7 +75,9 @@ cd aws-moodle-project
   kubectl version --client
   ```
 - **Helm:** [Install instructions](https://helm.sh/docs/intro/install/)
-
+export AWS_ACCESS_KEY_ID=your_access_key_id
+export AWS_SECRET_ACCESS_KEY=your_secret_access_key
+export AWS_SESSION_TOKEN=your_session_token
 ### 5. Initialize Terraform
 ```sh
 terraform init
@@ -346,3 +348,88 @@ Copy any error messages here for further help!
 ---
 
 If you encounter any other errors, copy the error message and seek help with your current AWS user/role and error details. 
+
+## Persistent Storage in AWS Learner Lab (Static EBS Provisioning)
+
+**IMPORTANT:** Due to IAM restrictions in AWS Learner Lab, dynamic EBS provisioning (via the EBS CSI driver) is NOT possible. You must use a statically provisioned EBS volume for Moodle persistent storage.
+
+### Why?
+- The EKS node IAM role cannot be modified to allow dynamic EBS volume creation.
+- This is a limitation of the Learner Lab environment (see aws_learner_lab_readme.txt).
+
+### Steps to Use Static EBS for Moodle
+
+1. **Create an EBS Volume**
+   - Go to the AWS Console → EC2 → Volumes → Create Volume.
+   - Type: gp2 or gp3, Size: 8 GiB (or as needed), Availability Zone: (must match your EKS node AZ, e.g., us-east-1a).
+   - Note the Volume ID (e.g., vol-xxxxxxxx).
+
+2. **Attach the EBS Volume to the correct AZ**
+   - Ensure the volume is in the same AZ as your EKS node(s). You can check node AZs with:
+     ```sh
+     kubectl get nodes -o wide
+     ```
+
+3. **Create a PersistentVolume (PV) and PersistentVolumeClaim (PVC)**
+   - Save the following as `static-pv.yaml` and apply it:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: moodle-static-pv
+spec:
+  capacity:
+    storage: 8Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  csi:
+    driver: kubernetes.io/aws-ebs
+    volumeHandle: <your-volume-id>  # e.g., vol-xxxxxxxx
+    fsType: ext4
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: topology.kubernetes.io/zone
+              operator: In
+              values:
+                - <your-az>  # e.g., us-east-1a
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: moodle-static-pv-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 8Gi
+  volumeName: moodle-static-pv
+```
+
+- Replace `<your-volume-id>` and `<your-az>` with your actual values.
+- Apply with:
+  ```sh
+  kubectl apply -f static-pv.yaml
+  ```
+
+4. **Configure Moodle Helm Chart to Use the Static PVC**
+   - The `moodle-values.yaml` is already set to use `existingClaim: moodle-static-pv-claim`.
+
+5. **Install/Upgrade Moodle**
+   ```sh
+   helm upgrade --install moodle bitnami/moodle -f moodle-values.yaml
+   ```
+
+### Notes
+- The PV reclaim policy is set to `Retain` to prevent accidental data loss.
+- You must manually delete the EBS volume if you no longer need it.
+- This approach is required due to Learner Lab IAM restrictions.
+
+--- 
