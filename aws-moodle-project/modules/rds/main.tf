@@ -20,38 +20,15 @@ resource "aws_rds_cluster" "aurora" {
   master_password        = random_password.aurora_password.result
   database_name          = "moodledb"
   db_subnet_group_name   = aws_db_subnet_group.default.name
-  vpc_security_group_ids = [aws_security_group.rds.id]
+  vpc_security_group_ids = [var.rds_security_group_id]
   skip_final_snapshot    = true
 }
 
 resource "aws_rds_cluster_instance" "aurora_instance" {
-  count              = 1
+  count              = var.rds_instance_count
   identifier         = "moodle-aurora-instance-${count.index}"
   cluster_identifier = aws_rds_cluster.aurora.id
   instance_class     = "db.t3.medium"
   engine             = aws_rds_cluster.aurora.engine
   publicly_accessible = false
-}
-
-resource "aws_security_group" "rds" {
-  name   = "moodle-rds-sg"
-  vpc_id = var.vpc_id
-
-  ingress {
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]  # allow internal access from EKS nodes
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "moodle-rds-sg"
-  }
 }
