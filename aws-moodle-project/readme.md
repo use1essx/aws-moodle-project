@@ -433,3 +433,139 @@ spec:
 - This approach is required due to Learner Lab IAM restrictions.
 
 --- 
+
+
+
+To set up your `aws-moodle-project` (the Terraform + Kubernetes + Helm Moodle deployment), follow these step-by-step instructions. This guide assumes you are using AWS Learner Lab and have the required permissions.
+
+---
+
+## 1. Prerequisites
+
+- **AWS CLI** installed and configured (with your Learner Lab credentials)
+- **kubectl** installed
+- **Helm** installed
+- **Terraform** installed
+- Your AWS Learner Lab account is active
+
+---
+
+## 2. Update Configuration Files
+
+**a. Edit `terraform.tfvars`**
+
+- Replace `ACCOUNT_ID` with your actual AWS Learner Lab account number.
+- Replace `vpc_id` and `subnet_ids` with the real VPC and subnet IDs from your Learner Lab environment.
+
+Example:
+```hcl
+region = "us-east-1"
+cluster_name = "moodle-eks-cluster"
+cluster_version = "1.29"
+cluster_iam_role_arn = "arn:aws:iam::123456789012:role/LabEksClusterRole"
+node_role_arn         = "arn:aws:iam::123456789012:role/LabRole"
+vpc_id     = "vpc-0abc1234def567890"
+subnet_ids = ["subnet-0abc1234def567890", "subnet-0def1234abc567890"]
+node_group_desired_capacity = 2
+node_group_max_capacity     = 2
+node_group_min_capacity     = 1
+```
+
+---
+
+## 3. Initialize and Apply Terraform
+
+Open a terminal in the `aws-moodle-project` directory and run:
+
+```bash
+terraform init
+terraform apply -auto-approve
+```
+
+This will provision your EKS cluster and related AWS resources.
+
+---
+
+## 4. Update kubeconfig
+
+After Terraform finishes, update your kubeconfig to connect `kubectl` to your new EKS cluster:
+
+```bash
+aws eks update-kubeconfig --name moodle-eks-cluster --region us-east-1
+```
+
+---
+
+## 5. Deploy Moodle and Kubernetes Resources
+
+If you have the `deploy-all.sh` script, make it executable and run it:
+
+```bash
+chmod +x deploy-all.sh
+./deploy-all.sh
+```
+
+**If you do not have `deploy-all.sh`, do the following manually:**
+
+a. **Create the namespace and ConfigMap:**
+```bash
+kubectl create namespace moodle
+kubectl apply -f moodle-config.yaml
+```
+
+b. **Deploy the Horizontal Pod Autoscaler:**
+```bash
+kubectl apply -f moodle-hpa.yaml
+```
+
+c. **Deploy Moodle using Helm:**
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+helm upgrade --install moodle bitnami/moodle \
+  -f moodle-values.yaml \
+  --namespace moodle \
+  --create-namespace
+```
+
+---
+
+## 6. Access Moodle
+
+- Find the NodePort assigned to the Moodle service:
+  ```bash
+  kubectl get svc -n moodle
+  ```
+- Look for the `moodle` service and note the `NODE-PORT` (e.g., 30080).
+- Get the public IP of one of your EKS worker nodes:
+  ```bash
+  kubectl get nodes -o wide
+  ```
+- Open your browser and go to:  
+  `http://<NODE_PUBLIC_IP>:<NODE-PORT>`
+
+---
+
+## 7. (Optional) Clean Up
+
+When finished, destroy all resources to avoid unnecessary charges:
+
+```bash
+terraform destroy -auto-approve
+```
+
+---
+
+## Troubleshooting
+
+- If you get permission errors, double-check your AWS Learner Lab credentials and IAM roles.
+- If pods are not starting, check with:
+  ```bash
+  kubectl get pods -n moodle
+  kubectl describe pod <pod-name> -n moodle
+  ```
+- For Helm issues, try `helm uninstall moodle -n moodle` and redeploy.
+
+---
+
+If you want to add FTP, DNS, or Directory pods, or need a report template or diagram, just let me know!
