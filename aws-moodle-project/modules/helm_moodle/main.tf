@@ -39,28 +39,7 @@ resource "helm_release" "moodle" {
   ]
 }
 
-resource "kubernetes_service" "moodle" {
-  metadata {
-    name = "moodle-service"
-    annotations = {
-      "service.beta.kubernetes.io/aws-load-balancer-type" = "nlb"
-    }
-  }
-  spec {
-    selector = {
-      app = "moodle"
-    }
-    port {
-      port        = 80
-      target_port = 8080
-      protocol    = "TCP"
-    }
-    type = "LoadBalancer"
-  }
-  depends_on = [helm_release.moodle]
-}
-
 output "service_url" {
-  value = kubernetes_service.moodle.status[0].load_balancer[0].ingress[0].hostname
-  description = "ALB DNS name for Moodle access"
+  value = ""
+  description = "Service URL will be available after apply."
 }

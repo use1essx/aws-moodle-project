@@ -62,10 +62,7 @@ resource "aws_subnet" "private_az2" {
 
 # NAT Gateway (only one for cost savings)
 resource "aws_eip" "nat" {
-  domain = "vpc"
-  tags = {
-    Name = "moodle-nat-eip"
-  }
+  # vpc = true   # <-- Removed as it's deprecated
 }
 
 resource "aws_nat_gateway" "nat" {
