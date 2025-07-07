@@ -1,0 +1,25 @@
+moodleUsername: admin
+moodlePassword: YourStrongMoodlePass123
+moodleEmail: admin@example.com
+
+mariadb:
+  enabled: false
+
+externalDatabase:
+  host: your-rds-endpoint.amazonaws.com
+  port: 3306
+  user: admin
+  password: YourStrongDBPassword
+  database: moodledb
+
+persistence:
+  enabled: true
+  # storageClass: "gp3"  # Disabled: use static provisioning
+  existingClaim: "moodle-static-pv-claim"  # Use the static PVC you will create
+  size: 8Gi
+
+service:
+  type: LoadBalancer
+
+ingress:
+  enabled: false  # We'll use ALB instead
