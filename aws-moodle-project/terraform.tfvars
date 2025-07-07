@@ -1,3 +1,10 @@
-# Update these ARNs with your actual IAM role ARNs from your AWS environment
-eks_cluster_role_arn = "arn:aws:iam::123456789012:role/LabEksClusterRole-EXAMPLE"
-eks_node_role_arn    = "arn:aws:iam::123456789012:role/LabEksNodeRole-EXAMPLE"
+region = "us-east-1"
+cluster_name = "moodle-eks-cluster"
+cluster_version = "1.29"
+cluster_iam_role_arn = "arn:aws:iam::123456789012:role/LabEksClusterRole"
+node_role_arn         = "arn:aws:iam::123456789012:role/LabRole"
+vpc_id     = "vpc-0abc1234def567890"
+subnet_ids = ["subnet-0abc1234def567890", "subnet-0def1234abc567890"]
+node_group_desired_capacity = 2
+node_group_max_capacity     = 2
+node_group_min_capacity     = 1
